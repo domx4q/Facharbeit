@@ -62,7 +62,12 @@ io.on('connection', (socket) => {
 
     socket.on("get conversation", (conversationId) => {
         console.log("get conversation: " + conversationId)
-        io.emit('conversation', conversations[conversationId]);
+        socket.emit('conversation', conversations[conversationId]);
+    });
+
+    socket.on("writing", (username) => {
+        console.log("writing: " + username)
+        io.emit('writing', username);
     });
 
     socket.on('disconnect', () => {

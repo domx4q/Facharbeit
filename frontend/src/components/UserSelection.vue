@@ -1,5 +1,5 @@
 <template>
-  <div class="user-list">
+  <div class="user-list" v-if="!isEmpty">
     <h2>Wähle einen Chatpartner</h2>
     <ul v-auto-animate>
       <template v-for="user in users" :key="user">
@@ -8,6 +8,10 @@
         </li>
       </template>
     </ul>
+  </div>
+  <div v-else>
+    <h2>Keine Benutzer verfügbar</h2>
+    <h3>Du bist alleine :(</h3>
   </div>
 </template>
 
@@ -43,6 +47,12 @@ export default {
       // reordering the list (selected to the top)
       this.users.splice(this.users.indexOf(user), 1);
       this.users.unshift(user);
+    }
+  },
+  computed: {
+    isEmpty() {
+      let withoutOwnUsername = this.users.filter(user => user !== this.username);
+      return withoutOwnUsername.length === 0;
     }
   }
 };

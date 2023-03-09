@@ -10,8 +10,9 @@
         <span class="text">{{ message.text }}</span>
       </div>
     </div>
+    <div class="writeStatus" v-text="writeStatus"/>
     <form class="input" action="#" @submit.prevent="sendMessage">
-      <input v-model="message" placeholder="Nachricht eingeben ...">
+      <input v-model="message" placeholder="Nachricht eingeben ..." @keydown="writing">
       <button type="submit">Senden</button>
     </form>
   </div>
@@ -39,11 +40,27 @@ export default {
       message: "",
       messages: [],
       username: "",
+
+      isWriting: false,
+      writingTimeout: null,
+      dots: "",
+      lastKeyDate: new Date()
     };
   },
   mounted() {
-    // this.username = prompt('Please enter your username');
-    this.username = "test" + Math.floor(Math.random() * 1000);
+    setInterval(() => {
+      if (this.dots.length < 3) {
+        this.dots += ".";
+      } else {
+        this.dots = ".";
+      }
+    }, 500);
+
+    this.username = prompt('Please enter your username');
+    if (this.username === null || this.username === undefined || this.username.trim() === '') {
+      this.username = "test" + Math.floor(Math.random() * 1000);
+    }
+    // this.username = "test" + Math.floor(Math.random() * 1000);
     this.$emit('setUsername', this.username);
 
     this.socket.on('private message', ({sender, message}) => {
@@ -59,6 +76,36 @@ export default {
         this.$emit("newMessage", sender);
       }
     });
+
+    this.socket.on('writing', (username) => {
+      console.log("Received writing from server: ", username)
+      if (username === this.targetUsername) {
+        this.isWriting = true;
+        clearTimeout(this.writingTimeout);
+        this.writingTimeout = setTimeout(() => {
+          this.isWriting = false;
+        }, 2000);
+      }
+    });
+
+    this.socket.on('conversation', (conversation) => { // moved to here to prevent multiple calls of loadConversation()
+      console.log("Received conversation from server: ", conversation)
+      try {
+        if (conversation === null || conversation === undefined || conversation.length === 0) {
+          return;
+        }
+      } catch (e) {
+        return;
+      }
+      conversation.forEach(message => {
+        console.log("Adding message to chat: ", message)
+        this.messages.push({
+          id: uuidv4(),
+          username: message.sender,
+          text: message.message
+        });
+      });
+    })
 
     this.socket.emit('set username', this.username);
 
@@ -77,31 +124,24 @@ export default {
     loadConversation() {
       this.messages = [];
       this.socket.emit('get conversation', this.conversationId);
-      this.socket.on('conversation', (conversation) => {
-        console.log("Received conversation from server: ", conversation)
-        try {
-          if (conversation === null || conversation === undefined || conversation.length === 0) {
-            return;
-          }
-        } catch (e) {
-          return;
-        }
-        let message;
-        for (let conv of conversation) {
-          message = {
-            id: uuidv4(),
-            username: conv.sender,
-            text: conv.message
-          };
-          this.messages.push(message);
-        }
-      });
+    },
+    writing() {
+      if (new Date() - this.lastKeyDate > 1000) {
+        this.socket.emit('writing', this.username);
+        this.lastKeyDate = new Date();
+      }
     }
   },
   computed: {
     conversationId() {
       return [this.username, this.targetUsername].sort().join('-');
     },
+    writeStatus() {
+      if (this.isWriting) {
+        return this.targetUsername + " schreibt" + this.dots;
+      }
+      return "";
+    }
   },
   watch: {
     connected() {
@@ -134,6 +174,7 @@ button {
   display: flex;
   flex-direction: column;
   height: 100%;
+  overflow: hidden;
 }
 
 .messages {
@@ -143,6 +184,7 @@ button {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  max-height: 800px;
 }
 
 .messages .message {
@@ -185,6 +227,13 @@ button {
 .input button {
   font-size: 1em;
   padding: 0.5em;
+}
+
+.writeStatus {
+  background-color: hsla(0, 0%, 30%, 0.2);
+  text-align: center;
+  font-size: 0.8em;
+  color: #ccc;
 }
 
 /*darkmode*/
